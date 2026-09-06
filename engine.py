@@ -124,7 +124,19 @@ class LLMEngine:
             print(name)
             print(json.dumps(arguments, indent=3))
 
-            data = await self.tools[name](**arguments)
+            # a failure is an observation, not a crash: it goes back into
+            # the trajectory so the model can self-correct
+            try:
+                tool = self.tools[name]
+            except KeyError:
+                data = json.dumps({"error": f"unknown tool: {name}"})
+            else:
+                try:
+                    data = await tool(**arguments)
+                except Exception as error:
+                    data = json.dumps({
+                        "error": f"{type(error).__name__}: {error}",
+                    })
 
             return {
                 "type": "function_result", 
