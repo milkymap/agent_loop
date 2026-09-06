@@ -14,25 +14,36 @@ than hidden behind a framework.
 ### Steps, turns, and trajectories
 
 Let a **step** be an atomic unit of the interaction: a user message (`um`), an assistant
-message (`am`), a thought, a tool call (`tc`), or a tool result (`tr`).
+message (`am`), a thought (`th`), a tool call (`tc`), or a tool result (`tr`).
 
 A **turn** (or *trajectory segment*) is the complete sequence of steps triggered by a
 single user message, terminating when the model produces a final assistant message:
 
 ```
-turn := [um] · [(tc, tr), (tc, tr), …, (tc, tr)] · [am]
+turn := [um] · [th? (tc, tr)]* · [th? am]
 ```
 
 Degenerate cases follow naturally:
 
 - `um · am` — a direct answer, no tools required;
 - `um · tc · tr · am` — one round of tool use;
-- `um · tc · tr · tc · tr · … · am` — an arbitrarily deep tool-use chain.
+- `um · th · tc · tr · tc · tr · … · am` — an arbitrarily deep tool-use chain,
+  possibly interleaved with thoughts.
 
 The **history** (context) of the conversation is the ordered concatenation of completed
 turns `t₀, t₁, …, tₙ`. On every model invocation, the engine flattens
 `history + current_turn` into a single step list and submits it as the model input —
-the model is stateless; the trajectory *is* the state.
+the model is stateless; the trajectory *is* the state. The engine stores each step in
+the exact order the model emitted it, so the replayed context is a faithful record of
+the trajectory.
+
+Because the context window is finite, the engine applies a **sliding window** over
+completed turns (the last *k*, default 32): the turn is the natural unit of context
+eviction — one summarises or evicts whole turns, never splits one.
+
+A failed tool execution is returned to the model as an error-bearing tool result rather
+than raised as an exception: **an error is an observation**, part of the trajectory,
+which the model can react to and self-correct — the mechanism Reflexion builds upon.
 
 ### The loop
 
@@ -73,8 +84,9 @@ declared in `tool_schemas.py`:
 | `google_maps` | Likewise, delegating to the built-in `google_maps` server tool. |
 | `bash` | Local shell execution via `asyncio.create_subprocess_exec`, with a bounded timeout, returning `{exit_code, stdout, stderr}` as JSON. |
 
-Tool dispatch is by name: `attrgetter(name)(self)(**arguments)` maps a function-call
-step directly onto the engine method of the same name. The system prompt specifies a
+Tool dispatch goes through an explicit registry (`self.tools`), a `{name → coroutine}`
+mapping built at engine start-up: the tool namespace is exactly its entries, keeping a
+clean boundary between what the model may invoke and the rest of the object. The system prompt specifies a
 strict *announcement protocol* (formalised with an ordering relation `≺`) requiring the
 model to announce each tool invocation before calling it and to ground its report in the
 returned result.
