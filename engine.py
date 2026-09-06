@@ -202,18 +202,19 @@ class LLMEngine:
                         })
 
                     if step.type == "function_call":
-                        function_calls.append(
-                            {
-                                "type": "function_call", 
-                                "name": step.name, 
-                                "id": step.id, 
-                                "arguments": step.arguments
-                            }
-                        )
+                        # append in place so the stored turn preserves the
+                        # exact step order the model emitted
+                        function_call = {
+                            "type": "function_call",
+                            "name": step.name,
+                            "id": step.id,
+                            "arguments": step.arguments
+                        }
+                        turn.append(function_call)
+                        function_calls.append(function_call)
 
-                if len(function_calls) > 0: 
+                if len(function_calls) > 0:
                     function_results = await self.execute_tools(function_calls)
-                    turn.extend(function_calls)
                     turn.extend(function_results)
                     stop_reason = 1
                     continue
