@@ -2,7 +2,6 @@
 import asyncio 
 import json 
 
-from operator import attrgetter
 from itertools import chain
 
 from typing import List, Tuple, Dict, Any, Optional 
@@ -20,7 +19,14 @@ class LLMEngine:
 
     async def __aenter__(self) -> Self:
         self.client = Client(api_key=self.gemini_api_key)
-        return self 
+        # explicit registry: the tool namespace is exactly these entries,
+        # not every method of the object
+        self.tools = {
+            "web_search": self.web_search,
+            "google_maps": self.google_maps,
+            "bash": self.bash,
+        }
+        return self
 
     async def __aexit__(self, exc_type, exc_val, traceback):
         pass 
@@ -118,7 +124,7 @@ class LLMEngine:
             print(name)
             print(json.dumps(arguments, indent=3))
 
-            data = await attrgetter(name)(self)(**arguments)
+            data = await self.tools[name](**arguments)
 
             return {
                 "type": "function_result", 
