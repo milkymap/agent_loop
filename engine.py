@@ -14,8 +14,9 @@ from prompt import SYSTEM_PROMPT
 from tool_schemas import TOOL_SCHEMAS
 
 class LLMEngine:
-    def __init__(self, gemini_api_key:str):
+    def __init__(self, gemini_api_key:str, max_history_turns:int=32):
         self.gemini_api_key = gemini_api_key
+        self.max_history_turns = max_history_turns
 
     async def __aenter__(self) -> Self:
         self.client = Client(api_key=self.gemini_api_key)
@@ -32,7 +33,9 @@ class LLMEngine:
         pass 
 
     async def generate_response(self, turns_array:List[List[Step]], turn:List[Step]):
-        llmctx = turns_array + [turn]
+        # sliding window over completed turns: the turn is the natural
+        # unit of context eviction
+        llmctx = turns_array[-self.max_history_turns:] + [turn]
         llmctx = list(chain(*llmctx))
 
         output = await self.client.aio.interactions.create(
