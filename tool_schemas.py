@@ -78,4 +78,92 @@ BASH_TOOL_SCHEMA = {
 }
 
 
-TOOL_SCHEMAS = [WEB_SEARCH_TOOL_SCHEMA, GOOGLE_MAPS_TOOL_SCHEMA, BASH_TOOL_SCHEMA]
+MEMORY_TOOL_SCHEMA = {
+    "type": "function",
+    "name": "memory",
+    "description": (
+        "Persistent memory across conversations, stored as virtual files under "
+        "/memories. Check your memory at the start of a task (view /memories or "
+        "search), and record important facts, progress, and user preferences as "
+        "you work. `search` retrieves entries by semantic similarity, not exact "
+        "match. Keep the memory organized: update or delete stale entries."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "command": {
+                "type": "string",
+                "enum": [
+                    "view", "create", "str_replace", "insert",
+                    "delete", "rename", "search",
+                ],
+                "description": "The memory operation to perform.",
+            },
+            "path": {
+                "type": "string",
+                "description": (
+                    "Path of the memory entry, starting with /memories "
+                    "(e.g. /memories/user_preferences.md). Use /memories "
+                    "with `view` to list all entries."
+                ),
+            },
+            "file_text": {
+                "type": "string",
+                "description": "Content to write (for `create`).",
+            },
+            "old_str": {
+                "type": "string",
+                "description": "Exact text to replace (for `str_replace`).",
+            },
+            "new_str": {
+                "type": "string",
+                "description": (
+                    "Replacement text (for `str_replace`); omit to delete "
+                    "old_str."
+                ),
+            },
+            "insert_line": {
+                "type": "integer",
+                "description": "Line after which to insert (for `insert`); 0 inserts at the top.",
+            },
+            "insert_text": {
+                "type": "string",
+                "description": "Text to insert (for `insert`).",
+            },
+            "view_range": {
+                "type": "array",
+                "items": {"type": "integer"},
+                "description": "[start_line, end_line] for `view`; -1 as end means end of file.",
+            },
+            "old_path": {
+                "type": "string",
+                "description": "Current path (for `rename`).",
+            },
+            "new_path": {
+                "type": "string",
+                "description": "New path (for `rename`).",
+            },
+            "query": {
+                "type": "string",
+                "description": "Natural-language query (for `search`).",
+            },
+            "top_k": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20,
+                "default": 5,
+                "description": "Number of results to return (for `search`).",
+            },
+        },
+        "required": ["command"],
+        "additionalProperties": False,
+    },
+}
+
+
+TOOL_SCHEMAS = [
+    WEB_SEARCH_TOOL_SCHEMA,
+    GOOGLE_MAPS_TOOL_SCHEMA,
+    BASH_TOOL_SCHEMA,
+    MEMORY_TOOL_SCHEMA,
+]
