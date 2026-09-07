@@ -12,6 +12,7 @@ from google.genai.interactions import Step, FunctionCallStep, FunctionResultStep
 
 from prompt import SYSTEM_PROMPT
 from tool_schemas import TOOL_SCHEMAS
+from memory import SemanticMemory
 
 class LLMEngine:
     def __init__(self, gemini_api_key:str, max_history_turns:int=32):
@@ -22,10 +23,12 @@ class LLMEngine:
         self.client = Client(api_key=self.gemini_api_key)
         # explicit registry: the tool namespace is exactly these entries,
         # not every method of the object
+        self.memory = SemanticMemory(client=self.client)
         self.tools = {
             "web_search": self.web_search,
             "google_maps": self.google_maps,
             "bash": self.bash,
+            "memory": self.memory.execute,
         }
         return self
 
