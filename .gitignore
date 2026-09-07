@@ -12,5 +12,3 @@ wheels/
 # Secrets
 .env
 
-# Local memory store
-memories.db

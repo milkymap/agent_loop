@@ -1,10 +1,11 @@
-import asyncio 
+import asyncio
 
-from itertools import chain 
 from dotenv import load_dotenv
+from google.genai import Client
 
 from settings import LLMSettings
 from engine import LLMEngine
+from tools import ToolsExecutor, WebSearchTool, GoogleMapsTool, BashTool
 
 def main():
     print("Hello from gemini-llm!")
@@ -13,7 +14,13 @@ def main():
 
     async def main_loop():
         print("inner async loop")
-        async with LLMEngine(gemini_api_key=llm_settings.gemini_api_key.get_secret_value()) as llm:
+        client = Client(api_key=llm_settings.gemini_api_key.get_secret_value())
+        tools_executor = ToolsExecutor(tools=[
+            WebSearchTool(client=client),
+            GoogleMapsTool(client=client),
+            BashTool(),
+        ])
+        async with LLMEngine(client=client, tools_executor=tools_executor) as llm:
             await llm.loop()
 
     asyncio.run(main=main_loop())
