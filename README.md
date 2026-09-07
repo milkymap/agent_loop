@@ -83,31 +83,17 @@ declared in `tool_schemas.py`:
 | `web_search` | A *nested* Gemini interaction using the built-in `google_search` server tool — an agent delegating to a sub-agent. |
 | `google_maps` | Likewise, delegating to the built-in `google_maps` server tool. |
 | `bash` | Local shell execution via `asyncio.create_subprocess_exec`, with a bounded timeout, returning `{exit_code, stdout, stderr}` as JSON. |
-| `memory` | Persistent cross-session memory (`memory.py`): virtual files under `/memories`, stored in SQLite with `gemini-embedding-2` vectors, plus semantic `search`. |
 
-### The memory tool
+Each tool lives in its own sub-package under `tools/` as a callable class deriving from
+`BaseTool`, which pairs an implementation (`__call__`) with its declared JSON schema
+(`name`, `schema`). A `ToolsExecutor` holds the registry — the tool namespace is
+exactly the instances handed to its constructor — exposes their schemas to the model,
+and turns function calls into function results, concurrently and with errors returned
+as observations. The executor is injected into `LLMEngine`, which therefore contains
+nothing but the loop itself: adding a capability to the agent means writing a new
+`BaseTool` subclass and adding one line in `main.py`.
 
-The `memory` tool is modelled on the [Anthropic memory tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool):
-the model manipulates virtual files under a `/memories` prefix through the same command
-enum — `view`, `create`, `str_replace`, `insert`, `delete`, `rename` — executed
-client-side against storage the application controls. Two departures from the original:
-
-- **Storage** is a SQLite table (`memories.db`) rather than a filesystem: one row per
-  entry, holding the path, the content, and a unit-normalised 768-dimensional
-  `gemini-embedding-2` vector recomputed on every write.
-- **A `search` command** is added: the query is embedded with the same model and
-  entries are ranked by cosine similarity (a dot product, since vectors are
-  unit-normalised at write time). This gives the agent associative recall — it can
-  retrieve "what does the user prefer?" without knowing which file holds the answer —
-  which a purely file-based memory only approximates by listing and reading files.
-
-Memory turns the trajectory formalism into something that survives the context window:
-what a turn learns can be written out as a durable observation and read back in a later
-conversation — the storage substrate that Reflexion-style self-reflections need.
-
-Tool dispatch goes through an explicit registry (`self.tools`), a `{name → coroutine}`
-mapping built at engine start-up: the tool namespace is exactly its entries, keeping a
-clean boundary between what the model may invoke and the rest of the object. The system prompt specifies a
+ The system prompt specifies a
 strict *announcement protocol* (formalised with an ordering relation `≺`) requiring the
 model to announce each tool invocation before calling it and to ground its report in the
 returned result.
@@ -115,12 +101,16 @@ returned result.
 ## Project layout
 
 ```
-main.py          Entry point: loads settings, runs the async REPL.
-engine.py        LLMEngine — model invocation, tool implementations, agent loop.
-memory.py        SemanticMemory — SQLite + Gemini-embedding memory tool.
-prompt.py        System prompt (formal specification of the agent's behaviour).
-tool_schemas.py  JSON Schemas for the three function tools.
-settings.py      Pydantic settings (GEMINI_API_KEY from .env).
+main.py            Entry point: builds the client, tools, and executor; runs the REPL.
+engine.py          LLMEngine — model invocation and the agent loop, nothing else.
+prompt.py          System prompt (formal specification of the agent's behaviour).
+settings.py        Pydantic settings (GEMINI_API_KEY from .env).
+tools/
+  base.py          BaseTool — abstract callable with a declared schema.
+  executor.py      ToolsExecutor — registry, schemas, concurrent execution.
+  web_search/      WebSearchTool (nested Gemini google_search interaction).
+  google_maps/     GoogleMapsTool (nested Gemini google_maps interaction).
+  bash/            BashTool (subprocess with bounded timeout).
 ```
 
 ## Running it
